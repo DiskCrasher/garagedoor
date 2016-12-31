@@ -27,15 +27,28 @@ namespace GarageDoor
     {
         private readonly GarageDoorSensor sensor;
 
+        private readonly DispatcherTimer dispatcherTimer = new DispatcherTimer();
+        DateTimeOffset startTime, lastTime, stopTime;
+        int timesTicked = 0;
+        const int MAX_TICKS = 1;
+
         private readonly SolidColorBrush redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
         private readonly SolidColorBrush greenBrush = new SolidColorBrush(Windows.UI.Colors.Green);
 
         public MainPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
             sensor = new GarageDoorSensor(this);
+            DispatcherTimerSetup();
             ledEllipse.Fill = sensor.GetDoorState() == DOOR_STATE.OPEN ? greenBrush : redBrush;
             GpioStatus.Text = $"GPIO pins initialized correctly.\nDoor is currently {sensor.GetDoorState()}.";
+
+            if (sensor.GetDoorState() == DOOR_STATE.OPEN)
+            {
+                startTime = DateTimeOffset.Now;
+                lastTime = startTime;
+                dispatcherTimer.Start();
+            }
         }
 
         public void UpdateStatus(GpioPinValueChangedEventArgs e)
@@ -45,15 +58,53 @@ namespace GarageDoor
                 if (e.Edge == GpioPinEdge.FallingEdge)
                 {
                     ledEllipse.Fill = redBrush;
-                    GpioStatus.Text = $"CLOSED\nDoor was closed at {DateTime.Now}.";
+                    GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
+                    if (dispatcherTimer.IsEnabled)
+                    {
+                        dispatcherTimer.Stop();
+                        stopTime = DateTimeOffset.Now;
+                    }
                 }
                 else
                 {
                     ledEllipse.Fill = greenBrush;
-                    GpioStatus.Text = $"OPEN\nDoor was opened at {DateTime.Now}.";
+                    GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
+                    startTime = DateTimeOffset.Now;
+                    lastTime = startTime;
+                    dispatcherTimer.Start();
                 }
             });
+        }
 
+        public void DispatcherTimerSetup()
+        {
+            dispatcherTimer.Tick += dispatcherTimer_Tick;
+            dispatcherTimer.Interval = new TimeSpan(0, 0, 5);
+        }
+
+        void dispatcherTimer_Tick(object sender, object e)
+        {
+            DateTimeOffset timeNow = DateTimeOffset.Now;
+            TimeSpan timeSinceLastTick = timeNow - lastTime;
+            lastTime = timeNow;
+            timesTicked++;
+
+            if (timesTicked >= MAX_TICKS)
+            {
+                stopTime = timeNow;
+                dispatcherTimer.Stop();
+                timeSinceLastTick = stopTime - startTime;
+                SendAlertEmail();
+            }
+        }
+
+        private void SendAlertEmail()
+        {
+            using (Mailer m = new Mailer())
+            {
+                m.Connect();
+                m.Send(GpioStatus.Text);
+            }
         }
     }
 }
