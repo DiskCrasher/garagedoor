@@ -17,6 +17,8 @@ using Windows.UI.Xaml.Navigation;
 using static GarageDoor.GarageDoorSensor;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
+// See https://msdn.microsoft.com/en-us/library/windows/apps/xaml/jj150599 (XAML socket connections)
+
 
 namespace GarageDoor
 {
@@ -30,6 +32,10 @@ namespace GarageDoor
         private readonly DispatcherTimer dispatcherTimer = new DispatcherTimer();
         DateTimeOffset startTime, lastTime, stopTime;
         int timesTicked = 0;
+
+        const int ALERT_DELAY_HOURS = 0;
+        const int ALERT_DELAY_MINUTES = 5;
+        const int ALERT_DELAY_SECONDS = 0;
         const int MAX_TICKS = 1;
 
         private readonly SolidColorBrush redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
@@ -79,7 +85,7 @@ namespace GarageDoor
         public void DispatcherTimerSetup()
         {
             dispatcherTimer.Tick += dispatcherTimer_Tick;
-            dispatcherTimer.Interval = new TimeSpan(0, 0, 5);
+            dispatcherTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
         }
 
         void dispatcherTimer_Tick(object sender, object e)
