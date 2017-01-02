@@ -23,15 +23,17 @@ using static GarageDoor.GarageDoorSensor;
 namespace GarageDoor
 {
     /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
+    /// Main page that displays door status. Also maintains a <see cref="DispatcherTimer"/> 
+    /// for sending alert e-mails.
     /// </summary>
     public sealed partial class MainPage : Page
     {
         private readonly GarageDoorSensor sensor;
 
         private readonly DispatcherTimer dispatcherTimer = new DispatcherTimer();
-        DateTimeOffset startTime, lastTime, stopTime;
-        int timesTicked = 0;
+        private DateTimeOffset startTime, lastTime, stopTime;
+        private int timesTicked = 0;
+        private bool sendClosedAlert = false;
 
         const int ALERT_DELAY_HOURS = 0;
         const int ALERT_DELAY_MINUTES = 5;
@@ -41,6 +43,9 @@ namespace GarageDoor
         private readonly SolidColorBrush redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
         private readonly SolidColorBrush greenBrush = new SolidColorBrush(Windows.UI.Colors.Green);
 
+        /// <summary>
+        /// Initializes GPIO pins, <see cref="DispatcherTimer"/>, and updates door status.
+        /// </summary>
         public MainPage()
         {
             InitializeComponent();
@@ -57,38 +62,51 @@ namespace GarageDoor
             }
         }
 
+        /// <summary>
+        /// Call this method to update form, start/stop the <see cref="DispatcherTimer"/>,
+        /// and send alert e-mails.
+        /// </summary>
+        /// <param name="e"></param>
         public void UpdateStatus(GpioPinValueChangedEventArgs e)
         {
             var task = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
                 if (e.Edge == GpioPinEdge.FallingEdge)
-                {
-                    ledEllipse.Fill = redBrush;
-                    GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
-                    if (dispatcherTimer.IsEnabled)
-                    {
-                        dispatcherTimer.Stop();
-                        stopTime = DateTimeOffset.Now;
-                    }
-                }
+                    DisplayClosedStatus();
                 else
-                {
-                    ledEllipse.Fill = greenBrush;
-                    GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
-                    startTime = DateTimeOffset.Now;
-                    lastTime = startTime;
-                    dispatcherTimer.Start();
-                }
+                    DisplayOpenStatus();
             });
         }
 
-        public void DispatcherTimerSetup()
+        private void DisplayClosedStatus()
+        {
+            ledEllipse.Fill = redBrush;
+            GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
+            if (dispatcherTimer.IsEnabled)
+            {
+                dispatcherTimer.Stop();
+                stopTime = DateTimeOffset.Now;
+                if (sendClosedAlert) SendAlertEmail();
+                sendClosedAlert = false;
+            }
+        }
+
+        private void DisplayOpenStatus()
+        {
+            ledEllipse.Fill = greenBrush;
+            GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
+            startTime = DateTimeOffset.Now;
+            lastTime = startTime;
+            dispatcherTimer.Start();
+        }
+ 
+        private void DispatcherTimerSetup()
         {
             dispatcherTimer.Tick += dispatcherTimer_Tick;
             dispatcherTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
         }
 
-        void dispatcherTimer_Tick(object sender, object e)
+        private void dispatcherTimer_Tick(object sender, object e)
         {
             DateTimeOffset timeNow = DateTimeOffset.Now;
             TimeSpan timeSinceLastTick = timeNow - lastTime;
@@ -101,6 +119,7 @@ namespace GarageDoor
                 dispatcherTimer.Stop();
                 timeSinceLastTick = stopTime - startTime;
                 SendAlertEmail();
+                sendClosedAlert = true;
             }
         }
 

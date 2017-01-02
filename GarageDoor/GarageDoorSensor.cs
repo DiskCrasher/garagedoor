@@ -3,7 +3,10 @@ using Windows.Devices.Gpio;
 
 namespace GarageDoor
 {
-    public class GarageDoorSensor
+    /// <summary>
+    /// This class is used to communicate with the Raspberry Pi GPIO pins.
+    /// </summary>
+    internal class GarageDoorSensor
     {
         // GPIO numbers (not physical header pins)
         //private const int LED_PIN = 6;
@@ -17,7 +20,11 @@ namespace GarageDoor
 
         public enum DOOR_STATE { UNKNOWN, OPEN, CLOSED }
 
-        public GarageDoorSensor(MainPage caller)
+        /// <summary>
+        /// Sets the calling form and initializes GPIO pins.
+        /// </summary>
+        /// <param name="caller">An instance of MainPage.</param>
+        internal GarageDoorSensor(MainPage caller)
         {
             callingForm = caller;
             InitGPIO();
@@ -69,7 +76,7 @@ namespace GarageDoor
             callingForm.UpdateStatus(e);
         }
 
-        public DOOR_STATE GetDoorState()
+        internal DOOR_STATE GetDoorState()
         {
             return (switchPin.Read() == GpioPinValue.Low) ? DOOR_STATE.CLOSED : DOOR_STATE.OPEN;
         }

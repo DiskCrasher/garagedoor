@@ -6,25 +6,31 @@ using Windows.Storage.Streams;
 
 namespace GarageDoor
 {
+    /// <summary>
+    /// This class contains methods for communicating with an SMTP server.
+    /// </summary>
     public class Mailer : IDisposable
     {
         private StreamSocket m_clientSocket = new StreamSocket();
         private HostName m_serverHost;
-        private bool m_connected = false;
+        private bool m_socketConnected = false;
 
         private const string SERVER_HOST_NAME = "shootingstar2";
         private const string SERVER_PORT_NUMBER = "25";
 
+        /// <summary>
+        /// Attempts to connect to the SMTP server.
+        /// </summary>
         public void Connect()
         {
-            if (m_connected) return;
+            if (m_socketConnected) return;
 
             try
             {
                 m_serverHost = new HostName(SERVER_HOST_NAME);
                 IAsyncAction taskLoad = m_clientSocket.ConnectAsync(m_serverHost, SERVER_PORT_NUMBER);
                 taskLoad.AsTask().Wait();
-                m_connected = true;
+                m_socketConnected = true;
             }
             catch (Exception exception)
             {
@@ -38,9 +44,13 @@ namespace GarageDoor
             }
         }
 
+        /// <summary>
+        /// Send data/command to the SMTP server.
+        /// </summary>
+        /// <param name="data"></param>
         public void Send(string data)
         {
-            if (!m_connected) return;
+            if (!m_socketConnected) return;
 
             try
             {
@@ -56,7 +66,7 @@ namespace GarageDoor
                 // Could retry the connection, but for this simple example
                 // just close the socket.
 
-                m_connected = false;
+                m_socketConnected = false;
             }
         }
 
@@ -69,20 +79,25 @@ namespace GarageDoor
                 reader.InputStreamOptions = InputStreamOptions.Partial;
 
                 string rxData = ReadData(reader); // Read 220 connection response message.
+                if (!rxData.StartsWith("220")) throw new InvalidOperationException();
 
                 WriteData(writer, "HELO shootingstarbbs.us");
                 rxData = ReadData(reader); // 250
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
                 WriteData(writer, "MAIL FROM:<diskcrasher@gmail.com>");
                 rxData = ReadData(reader); // 250
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
                 WriteData(writer, "RCPT TO:<diskcrasher@gmail.com>");
                 rxData = ReadData(reader); // 250
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
                 WriteData(writer, "DATA");
                 rxData = ReadData(reader); // 250
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
-                // add a newline to the text to send
+                // Add a newline to the text to send.
                 string txData = "From: Raspberry Pi3 <admin@shootingstarbbs.us>\n";
                 txData += "To: diskcrasher@gmail.com\n";
                 txData += $"Date: {DateTime.Now}\n";
@@ -90,9 +105,11 @@ namespace GarageDoor
                 txData += data + Environment.NewLine + ".";
                 WriteData(writer, txData);
                 rxData = ReadData(reader); // 250
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
                 WriteData(writer, "QUIT");
                 rxData = ReadData(reader); // 221
+                if (!rxData.StartsWith("221")) throw new InvalidOperationException();
 
                 // Detach the streams and close them.
                 writer.DetachStream();
@@ -114,7 +131,7 @@ namespace GarageDoor
         private static void WriteData(DataWriter writer, string txData)
         {
             if (!txData.EndsWith("\n")) txData += "\n";
-            uint len = writer.MeasureString(txData);
+            //uint len = writer.MeasureString(txData);
             writer.WriteString(txData);
             DataWriterStoreOperation writerLoad = writer.StoreAsync();
             writerLoad.AsTask().Wait();
