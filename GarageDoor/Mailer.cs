@@ -11,12 +11,15 @@ namespace GarageDoor
     /// </summary>
     public class Mailer : IDisposable
     {
+        private const string SERVER_HOST_NAME = "10.0.0.2";
+        private const string SERVER_PORT_NUMBER = "25";
+        private const string FROM_EMAIL = "diskcrasher@gmail.com";
+        private const string TO_EMAIL = "diskcrasher@gmail.com";
+        private const string ADMIN_EMAIL = "admin@shootingstarbbs.us";
+
         private StreamSocket m_clientSocket = new StreamSocket();
         private HostName m_serverHost;
         private bool m_socketConnected = false;
-
-        private const string SERVER_HOST_NAME = "10.0.0.2";
-        private const string SERVER_PORT_NUMBER = "25";
 
         /// <summary>
         /// Attempts to connect to the SMTP server.
@@ -70,6 +73,11 @@ namespace GarageDoor
             }
         }
 
+        /// <summary>
+        /// Sends e-mail message to SMTP server.
+        /// </summary>
+        /// <param name="data">Body of e-mail.</param>
+        /// <seealso cref="http://www.samlogic.net/articles/smtp-commands-reference.htm"/>
         private void SendSMTPCommands(string data)
         {
             using (DataWriter writer = new DataWriter(m_clientSocket.OutputStream))
@@ -79,27 +87,27 @@ namespace GarageDoor
                 reader.InputStreamOptions = InputStreamOptions.Partial;
 
                 string rxData = ReadData(reader); // Read 220 connection response message.
-                if (!rxData.StartsWith("220")) throw new InvalidOperationException();
+                if (!rxData.StartsWith("220")) throw new InvalidOperationException("Unexpected return result");
 
                 WriteData(writer, "HELO shootingstarbbs.us");
                 rxData = ReadData(reader); // 250
-                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException("Unexpected return result");
 
-                WriteData(writer, "MAIL FROM:<diskcrasher@gmail.com>");
+                WriteData(writer, $"MAIL FROM:<{FROM_EMAIL}>");
                 rxData = ReadData(reader); // 250
-                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException("Unexpected return result");
 
-                WriteData(writer, "RCPT TO:<diskcrasher@gmail.com>");
+                WriteData(writer, $"RCPT TO:<{TO_EMAIL}>");
                 rxData = ReadData(reader); // 250
-                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
+                if (!rxData.StartsWith("250")) throw new InvalidOperationException("Unexpected return result");
 
                 WriteData(writer, "DATA");
                 rxData = ReadData(reader); // 354
-                if (!rxData.StartsWith("354")) throw new InvalidOperationException();
+                if (!rxData.StartsWith("354")) throw new InvalidOperationException("Unexpected return result");
 
                 // Add a newline to the text to send.
-                string txData = "From: Raspberry Pi3 <admin@shootingstarbbs.us>\n";
-                txData += "To: diskcrasher@gmail.com\n";
+                string txData = $"From: Raspberry Pi3 <{ADMIN_EMAIL}>\n";
+                txData += $"To: {TO_EMAIL}\n";
                 txData += $"Date: {DateTime.Now}\n";
                 txData += "Subject: Garage door is OPEN!\n\n";
                 txData += data + Environment.NewLine + ".";

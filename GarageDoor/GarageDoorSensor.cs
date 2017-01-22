@@ -58,7 +58,6 @@ namespace GarageDoor
             // Register for the ValueChanged event so our buttonPin_ValueChanged 
             // function is called when the button is pressed
             switchPin.ValueChanged += buttonPin_ValueChanged;
-
         }
 
         private void buttonPin_ValueChanged(GpioPin sender, GpioPinValueChangedEventArgs e)
