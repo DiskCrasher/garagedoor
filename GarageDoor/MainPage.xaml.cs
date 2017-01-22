@@ -19,7 +19,6 @@ using static GarageDoor.GarageDoorSensor;
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 // See https://msdn.microsoft.com/en-us/library/windows/apps/xaml/jj150599 (XAML socket connections)
 
-
 namespace GarageDoor
 {
     /// <summary>
@@ -28,20 +27,21 @@ namespace GarageDoor
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private readonly GarageDoorSensor sensor;
+        private readonly GarageDoorSensor m_sensor;
 
-        private readonly DispatcherTimer dispatcherTimer = new DispatcherTimer();
-        private DateTimeOffset startTime, lastTime, stopTime;
-        private int timesTicked = 0;
-        private bool sendClosedAlert = false;
+        private readonly Queue<string> m_history = new Queue<string>(10);
+        private readonly DispatcherTimer m_dispatcherTimer = new DispatcherTimer();
+        private DateTimeOffset m_startTime, m_lastTime, m_stopTime;
+        private int m_timesTicked = 0;
+        private bool m_sendClosedAlert = false;
 
         const int ALERT_DELAY_HOURS = 0;
-        const int ALERT_DELAY_MINUTES = 5;
-        const int ALERT_DELAY_SECONDS = 0;
+        const int ALERT_DELAY_MINUTES = 3;
+        const int ALERT_DELAY_SECONDS = 5;
         const int MAX_TICKS = 1;
 
-        private readonly SolidColorBrush redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
-        private readonly SolidColorBrush greenBrush = new SolidColorBrush(Windows.UI.Colors.Green);
+        private readonly SolidColorBrush m_redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
+        private readonly SolidColorBrush m_greenBrush = new SolidColorBrush(Windows.UI.Colors.Green);
 
         /// <summary>
         /// Initializes GPIO pins, <see cref="DispatcherTimer"/>, and updates door status.
@@ -49,16 +49,17 @@ namespace GarageDoor
         public MainPage()
         {
             InitializeComponent();
-            sensor = new GarageDoorSensor(this);
+            m_sensor = new GarageDoorSensor(this);
             DispatcherTimerSetup();
-            ledEllipse.Fill = sensor.GetDoorState() == DOOR_STATE.OPEN ? greenBrush : redBrush;
-            GpioStatus.Text = $"GPIO pins initialized correctly.\nDoor is currently {sensor.GetDoorState()}.";
+            ledEllipse.Fill = m_sensor.GetDoorState() == DOOR_STATE.OPEN ? m_greenBrush : m_redBrush;
+            GpioStatus.Text = $"GPIO pins initialized correctly.\nDoor is currently {m_sensor.GetDoorState()}.";
+            m_history.Enqueue($"{DateTime.Now} - Program started with door {m_sensor.GetDoorState()}.");
 
-            if (sensor.GetDoorState() == DOOR_STATE.OPEN)
+            if (m_sensor.GetDoorState() == DOOR_STATE.OPEN)
             {
-                startTime = DateTimeOffset.Now;
-                lastTime = startTime;
-                dispatcherTimer.Start();
+                m_startTime = DateTimeOffset.Now;
+                m_lastTime = m_startTime;
+                m_dispatcherTimer.Start();
             }
         }
 
@@ -72,63 +73,80 @@ namespace GarageDoor
             var task = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
                 if (e.Edge == GpioPinEdge.FallingEdge)
-                    DisplayClosedStatus();
+                    HandleCloseEvent();
                 else
-                    DisplayOpenStatus();
+                    HandleOpenEvent();
             });
         }
 
-        private void DisplayClosedStatus()
+        private void HandleCloseEvent()
         {
-            ledEllipse.Fill = redBrush;
+            ledEllipse.Fill = m_redBrush;
             GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
-            if (dispatcherTimer.IsEnabled)
+            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED.");
+
+            if (m_dispatcherTimer.IsEnabled)
             {
-                dispatcherTimer.Stop();
-                stopTime = DateTimeOffset.Now;
-                if (sendClosedAlert) SendAlertEmail();
-                sendClosedAlert = false;
+                m_dispatcherTimer.Stop();
+                m_stopTime = DateTimeOffset.Now;
+                if (m_sendClosedAlert) SendAlertEmail();
+                m_sendClosedAlert = false;
             }
         }
 
-        private void DisplayOpenStatus()
+        private void HandleOpenEvent()
         {
-            ledEllipse.Fill = greenBrush;
+            ledEllipse.Fill = m_greenBrush;
             GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
-            startTime = DateTimeOffset.Now;
-            lastTime = startTime;
-            dispatcherTimer.Start();
+            m_history.Enqueue($"{DateTime.Now} - Door is OPEN.");
+            m_startTime = DateTimeOffset.Now;
+            m_lastTime = m_startTime;
+            m_dispatcherTimer.Start();
         }
  
         private void DispatcherTimerSetup()
         {
-            dispatcherTimer.Tick += dispatcherTimer_Tick;
-            dispatcherTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
+            m_dispatcherTimer.Tick += dispatcherTimer_Tick;
+            m_dispatcherTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
         }
 
         private void dispatcherTimer_Tick(object sender, object e)
         {
+            UpdateHistoryTextBlock();
             DateTimeOffset timeNow = DateTimeOffset.Now;
-            TimeSpan timeSinceLastTick = timeNow - lastTime;
-            lastTime = timeNow;
-            timesTicked++;
+            TimeSpan timeSinceLastTick = timeNow - m_lastTime;
+            m_lastTime = timeNow;
+            m_timesTicked++;
 
-            if (timesTicked >= MAX_TICKS)
+            if (m_timesTicked >= MAX_TICKS)
             {
-                stopTime = timeNow;
-                dispatcherTimer.Stop();
-                timeSinceLastTick = stopTime - startTime;
+                m_stopTime = timeNow;
+                m_dispatcherTimer.Stop();
+                timeSinceLastTick = m_stopTime - m_startTime;
                 SendAlertEmail();
-                sendClosedAlert = true;
+                m_sendClosedAlert = true;
             }
         }
 
+        /// <summary>
+        /// Displays contents of history queue in GUI.
+        /// </summary>
+        private void UpdateHistoryTextBlock()
+        {
+            textBlock.Text = "";
+            foreach (string entry in m_history)
+                textBlock.Text += entry + Environment.NewLine;
+        }
+
+        /// <summary>
+        /// Sends out an e-mail alert via SMTP.
+        /// </summary>
         private void SendAlertEmail()
         {
             using (Mailer m = new Mailer())
             {
                 m.Connect();
-                m.Send(GpioStatus.Text);
+                m.Send(GpioStatus.Text + Environment.NewLine + Environment.NewLine + textBlock.Text);
             }
         }
     }

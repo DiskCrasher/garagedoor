@@ -15,7 +15,7 @@ namespace GarageDoor
         private HostName m_serverHost;
         private bool m_socketConnected = false;
 
-        private const string SERVER_HOST_NAME = "shootingstar2";
+        private const string SERVER_HOST_NAME = "10.0.0.2";
         private const string SERVER_PORT_NUMBER = "25";
 
         /// <summary>
@@ -56,11 +56,11 @@ namespace GarageDoor
             {
                 SendSMTPCommands(data);
             }
-            catch (Exception exception)
+            catch (Exception e)
             {
                 // If this is an unknown status, 
                 // it means that the error is fatal and retry will likely fail.
-                if (SocketError.GetStatus(exception.HResult) == SocketErrorStatus.Unknown)
+                if (SocketError.GetStatus(e.HResult) == SocketErrorStatus.Unknown)
                     throw;
 
                 // Could retry the connection, but for this simple example
@@ -94,8 +94,8 @@ namespace GarageDoor
                 if (!rxData.StartsWith("250")) throw new InvalidOperationException();
 
                 WriteData(writer, "DATA");
-                rxData = ReadData(reader); // 250
-                if (!rxData.StartsWith("250")) throw new InvalidOperationException();
+                rxData = ReadData(reader); // 354
+                if (!rxData.StartsWith("354")) throw new InvalidOperationException();
 
                 // Add a newline to the text to send.
                 string txData = "From: Raspberry Pi3 <admin@shootingstarbbs.us>\n";
@@ -130,7 +130,7 @@ namespace GarageDoor
 
         private static void WriteData(DataWriter writer, string txData)
         {
-            if (!txData.EndsWith("\n")) txData += "\n";
+            if (!txData.EndsWith(Environment.NewLine)) txData += Environment.NewLine;
             //uint len = writer.MeasureString(txData);
             writer.WriteString(txData);
             DataWriterStoreOperation writerLoad = writer.StoreAsync();
