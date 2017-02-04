@@ -75,13 +75,13 @@ namespace GarageDoor
         /// Send data/command to the SMTP server.
         /// </summary>
         /// <param name="data"></param>
-        public void Send(string data)
+        public void Send(string doorStatus, string data)
         {
             if (!m_socketConnected) return;
 
             try
             {
-                SendSMTPCommands(data);
+                SendSMTPCommands(doorStatus, data);
             }
             catch (Exception e)
             {
@@ -102,7 +102,7 @@ namespace GarageDoor
         /// </summary>
         /// <param name="data">Body of e-mail.</param>
         /// <seealso cref="http://www.samlogic.net/articles/smtp-commands-reference.htm"/>
-        private void SendSMTPCommands(string data)
+        private void SendSMTPCommands(string doorStatus, string data)
         {
             using (DataWriter writer = new DataWriter(m_clientSocket.OutputStream))
             using (DataReader reader = new DataReader(m_clientSocket.InputStream))
@@ -133,7 +133,7 @@ namespace GarageDoor
                 string txData = $"From: Raspberry Pi3 <{ADMIN_EMAIL}>\n";
                 txData += $"To: {TO_EMAIL}\n";
                 txData += $"Date: {DateTime.Now}\n";
-                txData += "Subject: Garage door is OPEN!\n\n";
+                txData += $"Subject: Garage door is {doorStatus}\n\n";
                 txData += data + Environment.NewLine + ".";
                 WriteData(writer, txData);
                 rxData = ReadData(reader); // 250

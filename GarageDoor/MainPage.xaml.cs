@@ -51,18 +51,18 @@ namespace GarageDoor
     /// </summary>
     public sealed partial class MainPage : Page
     {
-        private readonly GarageDoorSensor m_sensor;
-
-        private readonly Queue<string> m_history = new Queue<string>(10);
-        private readonly DispatcherTimer m_dispatcherTimer = new DispatcherTimer();
-        private DateTimeOffset m_startTime, m_lastTime, m_stopTime;
-        private int m_timesTicked = 0;
-        private bool m_sendClosedAlert = false;
-
+        const int HISTORY_QUEUE_SIZE = 10;
         const int ALERT_DELAY_HOURS = 0;
         const int ALERT_DELAY_MINUTES = 3;
         const int ALERT_DELAY_SECONDS = 5;
         const int MAX_TICKS = 1;
+
+        private readonly GarageDoorSensor m_sensor;
+        private readonly Queue<string> m_history = new Queue<string>(HISTORY_QUEUE_SIZE);
+        private readonly DispatcherTimer m_doorOpenTimer = new DispatcherTimer();
+        private DateTimeOffset m_startTime, m_lastTime, m_stopTime;
+        private int m_timesTicked = 0;
+        private bool m_sendClosedAlert = false;
 
         private readonly SolidColorBrush m_redBrush = new SolidColorBrush(Windows.UI.Colors.Red);
         private readonly SolidColorBrush m_greenBrush = new SolidColorBrush(Windows.UI.Colors.Green);
@@ -78,12 +78,13 @@ namespace GarageDoor
             ledEllipse.Fill = m_sensor.GetDoorState() == DOOR_STATE.OPEN ? m_greenBrush : m_redBrush;
             GpioStatus.Text = $"GPIO pins initialized correctly.\nDoor is currently {m_sensor.GetDoorState()}.";
             m_history.Enqueue($"{DateTime.Now} - Program started with door {m_sensor.GetDoorState()}.");
+            UpdateHistoryTextBlock();
 
             if (m_sensor.GetDoorState() == DOOR_STATE.OPEN)
             {
                 m_startTime = DateTimeOffset.Now;
                 m_lastTime = m_startTime;
-                m_dispatcherTimer.Start();
+                m_doorOpenTimer.Start();
             }
         }
 
@@ -103,38 +104,42 @@ namespace GarageDoor
             });
         }
 
-        private void HandleCloseEvent()
-        {
-            ledEllipse.Fill = m_redBrush;
-            GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
-            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED.");
-
-            if (m_dispatcherTimer.IsEnabled)
-            {
-                m_dispatcherTimer.Stop();
-                m_stopTime = DateTimeOffset.Now;
-                if (m_sendClosedAlert) SendAlertEmail();
-                m_sendClosedAlert = false;
-            }
-        }
-
         private void HandleOpenEvent()
         {
             ledEllipse.Fill = m_greenBrush;
             GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
             m_history.Enqueue($"{DateTime.Now} - Door is OPEN.");
+            if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
             m_startTime = DateTimeOffset.Now;
             m_lastTime = m_startTime;
-            m_dispatcherTimer.Start();
-        }
- 
-        private void DispatcherTimerSetup()
-        {
-            m_dispatcherTimer.Tick += dispatcherTimer_Tick;
-            m_dispatcherTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
+            m_doorOpenTimer.Start();
         }
 
-        private void dispatcherTimer_Tick(object sender, object e)
+        private void HandleCloseEvent()
+        {
+            TimeSpan duration = DateTimeOffset.Now - m_startTime;
+            ledEllipse.Fill = m_redBrush;
+            GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
+            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (duration: {duration.ToString(@"hh\:mm\:ss")}");
+            if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
+            UpdateHistoryTextBlock();
+
+            if (m_doorOpenTimer.IsEnabled)
+            {
+                m_doorOpenTimer.Stop();
+                m_stopTime = DateTimeOffset.Now;
+                if (m_sendClosedAlert) SendAlertEmail("CLOSED");
+                m_sendClosedAlert = false;
+            }
+        }
+
+        private void DispatcherTimerSetup()
+        {
+            m_doorOpenTimer.Tick += DoorOpenTimer_Tick;
+            m_doorOpenTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
+        }
+
+        private void DoorOpenTimer_Tick(object sender, object e)
         {
             UpdateHistoryTextBlock();
             DateTimeOffset timeNow = DateTimeOffset.Now;
@@ -145,9 +150,9 @@ namespace GarageDoor
             if (m_timesTicked >= MAX_TICKS)
             {
                 m_stopTime = timeNow;
-                m_dispatcherTimer.Stop();
+                m_doorOpenTimer.Stop();
                 timeSinceLastTick = m_stopTime - m_startTime;
-                SendAlertEmail();
+                SendAlertEmail("OPEN");
                 m_sendClosedAlert = true;
             }
         }
@@ -165,12 +170,12 @@ namespace GarageDoor
         /// <summary>
         /// Sends out an e-mail alert via SMTP.
         /// </summary>
-        private void SendAlertEmail()
+        private void SendAlertEmail(string doorStatus)
         {
             using (Mailer m = new Mailer())
             {
                 m.Connect();
-                m.Send(GpioStatus.Text + Environment.NewLine + Environment.NewLine + textBlock.Text);
+                m.Send(doorStatus, GpioStatus.Text + Environment.NewLine + Environment.NewLine + textBlock.Text);
             }
         }
     }
