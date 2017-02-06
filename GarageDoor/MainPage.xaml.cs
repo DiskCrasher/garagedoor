@@ -38,7 +38,6 @@ using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
-using static GarageDoor.GarageDoorSensor;
 
 // The Blank Page item template is documented at http://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
 // See https://msdn.microsoft.com/en-us/library/windows/apps/xaml/jj150599 (XAML socket connections)
@@ -85,6 +84,7 @@ namespace GarageDoor
                 m_startTime = DateTimeOffset.Now;
                 m_lastTime = m_startTime;
                 m_doorOpenTimer.Start();
+                button.Content = "Close";
             }
         }
 
@@ -106,6 +106,7 @@ namespace GarageDoor
 
         private void HandleOpenEvent()
         {
+            button.Content = "Close";
             ledEllipse.Fill = m_greenBrush;
             GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
             m_history.Enqueue($"{DateTime.Now} - Door is OPEN.");
@@ -113,14 +114,16 @@ namespace GarageDoor
             m_startTime = DateTimeOffset.Now;
             m_lastTime = m_startTime;
             m_doorOpenTimer.Start();
+            UpdateHistoryTextBlock();
         }
 
         private void HandleCloseEvent()
         {
             TimeSpan duration = DateTimeOffset.Now - m_startTime;
+            button.Content = "Open";
             ledEllipse.Fill = m_redBrush;
             GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
-            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (duration: {duration.ToString(@"hh\:mm\:ss")}");
+            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (open duration: {duration.ToString(@"hh\:mm\:ss")})");
             if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
             UpdateHistoryTextBlock();
 
@@ -139,9 +142,14 @@ namespace GarageDoor
             m_doorOpenTimer.Interval = new TimeSpan(ALERT_DELAY_HOURS, ALERT_DELAY_MINUTES, ALERT_DELAY_SECONDS);
         }
 
+        /// <summary>
+        /// Checks how long the door has been open and if it exceeds predefined duration,
+        /// sends an alert e-mail.
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void DoorOpenTimer_Tick(object sender, object e)
         {
-            UpdateHistoryTextBlock();
             DateTimeOffset timeNow = DateTimeOffset.Now;
             TimeSpan timeSinceLastTick = timeNow - m_lastTime;
             m_lastTime = timeNow;
@@ -155,6 +163,17 @@ namespace GarageDoor
                 SendAlertEmail("OPEN");
                 m_sendClosedAlert = true;
             }
+        }
+
+        private void button_Click(object sender, RoutedEventArgs e)
+        {
+            m_sensor.InitiateButtonPush();
+        }
+
+        private void buttonClearHistory_Click(object sender, RoutedEventArgs e)
+        {
+            m_history.Clear();
+            UpdateHistoryTextBlock();
         }
 
         /// <summary>

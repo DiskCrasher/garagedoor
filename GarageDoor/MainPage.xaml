@@ -8,10 +8,13 @@
     mc:Ignorable="d">
 
     <Grid Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" RenderTransformOrigin="0.493,0.533">
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="62,49,70,399" Height="320" Width="892">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Margin="22,49,19,453" Height="266" Width="983">
             <Ellipse x:Name="ledEllipse" Fill="LightGray" Stroke="White" Width="100" Height="100" Margin="10"/>
             <TextBlock x:Name="GpioStatus" Text="Waiting to initialize GPIO..." Margin="10,50,10,10" TextAlignment="Center" FontSize="26.667" />
         </StackPanel>
-        <TextBlock x:Name="textBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="(No event history)" VerticalAlignment="Top" Height="336" Width="892" Margin="62,374,0,0"/>
+        <Button x:Name="button" Content="Open" Margin="485,175,0,561" Click="button_Click"/>
+        <TextBlock x:Name="textBlock" HorizontalAlignment="Left" TextWrapping="Wrap" Text="(No event history)" VerticalAlignment="Top" Height="365" Width="983" Margin="22,385,0,0"/>
+        <Border BorderBrush="Black" BorderThickness="1" HorizontalAlignment="Left" Height="389" Margin="10,369,0,0" VerticalAlignment="Top" Width="1004"/>
+        <Button x:Name="buttonClearHistory" Content="Clear History" HorizontalAlignment="Left" Margin="22,332,0,0" VerticalAlignment="Top" Click="buttonClearHistory_Click"/>
     </Grid>
 </Page>

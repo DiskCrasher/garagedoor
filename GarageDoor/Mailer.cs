@@ -33,7 +33,7 @@ namespace GarageDoor
     /// <summary>
     /// This class contains methods for communicating with an SMTP server.
     /// </summary>
-    public class Mailer : IDisposable
+    public sealed class Mailer : IDisposable
     {
         private const string SERVER_HOST_NAME = "10.0.0.2";
         private const string SERVER_PORT_NUMBER = "25";
@@ -172,22 +172,22 @@ namespace GarageDoor
         }
 
         #region IDisposable Support
-        private bool m_disposedValue = false; // To detect redundant calls
+        private bool m_alreadyDisposed = false; // To detect redundant calls
 
-        protected virtual void Dispose(bool disposing)
+        private void Dispose(bool disposing)
         {
-            if (!m_disposedValue)
+            if (!m_alreadyDisposed)
             {
                 if (disposing)
                 {
                     // TODO: dispose managed state (managed objects).
-                    if (m_clientSocket != null) m_clientSocket.Dispose();
+                    m_clientSocket?.Dispose();
                 }
 
                 // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
                 // TODO: set large fields to null.
 
-                m_disposedValue = true;
+                m_alreadyDisposed = true;
             }
         }
 

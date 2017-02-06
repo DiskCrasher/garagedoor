@@ -23,26 +23,26 @@ SOFTWARE.
 */
 
 using System;
+using System.Threading.Tasks;
 using Windows.Devices.Gpio;
 
 namespace GarageDoor
 {
+    public enum DOOR_STATE { UNKNOWN, OPEN, CLOSED }
+
     /// <summary>
     /// This class is used to communicate with the Raspberry Pi GPIO pins.
     /// </summary>
-    internal class GarageDoorSensor
+    internal sealed class GarageDoorSensor : IDisposable
     {
         // GPIO numbers (not physical header pins)
-        //private const int LED_PIN = 6;
-        private const int SWITCH_PIN = 5;
+        private const int OUTPUT_PIN = 6; // To 2N3053 transistor.
+        private const int INPUT_PIN = 5; // From magnetic sensor.
 
-        //private GpioPin ledPin;
-        private GpioPin switchPin;
-        //private GpioPinValue ledPinValue = GpioPinValue.High;
+        private GpioPin m_inputPin;
+        private GpioPin m_outputPin;
 
-        private MainPage callingForm;
-
-        public enum DOOR_STATE { UNKNOWN, OPEN, CLOSED }
+        private MainPage m_callingForm;
 
         /// <summary>
         /// Sets the calling form and initializes GPIO pins.
@@ -50,7 +50,7 @@ namespace GarageDoor
         /// <param name="caller">An instance of MainPage.</param>
         internal GarageDoorSensor(MainPage caller)
         {
-            callingForm = caller;
+            m_callingForm = caller;
             InitGPIO();
         }
 
@@ -62,26 +62,30 @@ namespace GarageDoor
             if (gpio == null)
                 throw new InvalidOperationException("There is no GPIO controller on this device.");
 
-            switchPin = gpio.OpenPin(SWITCH_PIN);
-            //ledPin = gpio.OpenPin(LED_PIN);
-
-            // Initialize LED to the OFF state by first writing a HIGH value
-            // We write HIGH because the LED is wired in a active LOW configuration
-            //ledPin.Write(GpioPinValue.High);
-            //ledPin.SetDriveMode(GpioPinDriveMode.Output);
+            m_inputPin = gpio.OpenPin(INPUT_PIN);
+            m_outputPin = gpio.OpenPin(OUTPUT_PIN);
 
             // Check if input pull-up resistors are supported
-            if (switchPin.IsDriveModeSupported(GpioPinDriveMode.InputPullUp))
-                switchPin.SetDriveMode(GpioPinDriveMode.InputPullUp);
+            if (m_inputPin.IsDriveModeSupported(GpioPinDriveMode.InputPullUp))
+                m_inputPin.SetDriveMode(GpioPinDriveMode.InputPullUp);
             else
-                switchPin.SetDriveMode(GpioPinDriveMode.Input);
+                m_inputPin.SetDriveMode(GpioPinDriveMode.Input);
+
+            if (m_outputPin.IsDriveModeSupported(GpioPinDriveMode.OutputOpenDrainPullUp))
+                m_outputPin.SetDriveMode(GpioPinDriveMode.OutputOpenDrainPullUp);
+            else
+                m_outputPin.SetDriveMode(GpioPinDriveMode.Output);
 
             // Set a debounce timeout to filter out switch bounce noise from a button press
-            switchPin.DebounceTimeout = TimeSpan.FromMilliseconds(50);
+            m_inputPin.DebounceTimeout = TimeSpan.FromMilliseconds(50);
+
+            // Initialize button to the OFF state by first writing a LOW value.
+            // We write LOW because the output is wired in a active HIGH configuration.
+            m_outputPin.Write(GpioPinValue.Low);
 
             // Register for the ValueChanged event so our buttonPin_ValueChanged 
             // function is called when the button is pressed
-            switchPin.ValueChanged += buttonPin_ValueChanged;
+            m_inputPin.ValueChanged += buttonPin_ValueChanged;
         }
 
         private void buttonPin_ValueChanged(GpioPin sender, GpioPinValueChangedEventArgs e)
@@ -96,12 +100,55 @@ namespace GarageDoor
 
             //need to invoke UI updates on the UI thread because this event
             //handler gets invoked on a separate thread.
-            callingForm.UpdateStatus(e);
+            m_callingForm.UpdateStatus(e);
         }
 
         internal DOOR_STATE GetDoorState()
         {
-            return (switchPin.Read() == GpioPinValue.Low) ? DOOR_STATE.CLOSED : DOOR_STATE.OPEN;
+            return (m_inputPin.Read() == GpioPinValue.Low) ? DOOR_STATE.CLOSED : DOOR_STATE.OPEN;
         }
+
+        internal void InitiateButtonPush()
+        {
+            m_outputPin.Write(GpioPinValue.High);
+            Task.Delay(-1).Wait(100);
+            m_outputPin.Write(GpioPinValue.Low);
+        }
+
+        #region IDisposable Support
+        private bool m_alreadyDisposed = false; // To detect redundant calls
+
+        private void Dispose(bool disposing)
+        {
+            if (!m_alreadyDisposed)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    m_inputPin?.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                m_alreadyDisposed = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~GarageDoorSensor() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }
