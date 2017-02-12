@@ -48,7 +48,7 @@ namespace GarageDoor
     /// Main page that displays door status. Also maintains a <see cref="DispatcherTimer"/> 
     /// for sending alert e-mails.
     /// </summary>
-    public sealed partial class MainPage : Page
+    public sealed partial class MainPage : Page, IDisposable
     {
         const int HISTORY_QUEUE_SIZE = 10;
         const int ALERT_DELAY_HOURS = 0;
@@ -97,10 +97,8 @@ namespace GarageDoor
         {
             var task = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
             {
-                if (e.Edge == GpioPinEdge.FallingEdge)
-                    HandleCloseEvent();
-                else
-                    HandleOpenEvent();
+                if (e.Edge == GpioPinEdge.FallingEdge) HandleCloseEvent();
+                else HandleOpenEvent();
             });
         }
 
@@ -111,10 +109,10 @@ namespace GarageDoor
             GpioStatus.Text = $"Door is OPEN\nDoor was opened at {DateTime.Now}.";
             m_history.Enqueue($"{DateTime.Now} - Door is OPEN.");
             if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
+            UpdateHistoryTextBlock();
             m_startTime = DateTimeOffset.Now;
             m_lastTime = m_startTime;
             m_doorOpenTimer.Start();
-            UpdateHistoryTextBlock();
         }
 
         private void HandleCloseEvent()
@@ -126,13 +124,13 @@ namespace GarageDoor
             m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (open duration: {duration.ToString(@"hh\:mm\:ss")})");
             if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
             UpdateHistoryTextBlock();
+            if (m_sendClosedAlert) SendAlertEmail("CLOSED");
+            m_sendClosedAlert = false;
 
             if (m_doorOpenTimer.IsEnabled)
             {
                 m_doorOpenTimer.Stop();
                 m_stopTime = DateTimeOffset.Now;
-                if (m_sendClosedAlert) SendAlertEmail("CLOSED");
-                m_sendClosedAlert = false;
             }
         }
 
@@ -197,5 +195,41 @@ namespace GarageDoor
                 m.Send(doorStatus, GpioStatus.Text + Environment.NewLine + Environment.NewLine + textBlock.Text);
             }
         }
+
+        #region IDisposable Support
+        private bool m_alreadyDisposed = false; // To detect redundant calls
+
+        void Dispose(bool disposing)
+        {
+            if (!m_alreadyDisposed)
+            {
+                if (disposing)
+                {
+                    // TODO: dispose managed state (managed objects).
+                    m_sensor?.Dispose();
+                }
+
+                // TODO: free unmanaged resources (unmanaged objects) and override a finalizer below.
+                // TODO: set large fields to null.
+
+                m_alreadyDisposed = true;
+            }
+        }
+
+        // TODO: override a finalizer only if Dispose(bool disposing) above has code to free unmanaged resources.
+        // ~MainPage() {
+        //   // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+        //   Dispose(false);
+        // }
+
+        // This code added to correctly implement the disposable pattern.
+        public void Dispose()
+        {
+            // Do not change this code. Put cleanup code in Dispose(bool disposing) above.
+            Dispose(true);
+            // TODO: uncomment the following line if the finalizer is overridden above.
+            // GC.SuppressFinalize(this);
+        }
+        #endregion
     }
 }

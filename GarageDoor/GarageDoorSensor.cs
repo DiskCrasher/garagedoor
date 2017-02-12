@@ -85,10 +85,10 @@ namespace GarageDoor
 
             // Register for the ValueChanged event so our buttonPin_ValueChanged 
             // function is called when the button is pressed
-            m_inputPin.ValueChanged += buttonPin_ValueChanged;
+            m_inputPin.ValueChanged += inputPin_ValueChanged;
         }
 
-        private void buttonPin_ValueChanged(GpioPin sender, GpioPinValueChangedEventArgs e)
+        private void inputPin_ValueChanged(GpioPin sender, GpioPinValueChangedEventArgs e)
         {
             //toggle the state of the LED every time the button is pressed
             //if (e.Edge == GpioPinEdge.FallingEdge)
