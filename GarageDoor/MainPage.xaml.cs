@@ -121,7 +121,7 @@ namespace GarageDoor
             button.Content = "Open";
             ledEllipse.Fill = m_redBrush;
             GpioStatus.Text = $"Door is CLOSED\nDoor was closed at {DateTime.Now}.";
-            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (open duration: {duration.ToString(@"hh\:mm\:ss")})");
+            m_history.Enqueue($"{DateTime.Now} - Door is CLOSED (duration: {duration.ToString(@"hh\:mm\:ss")})");
             if (m_history.Count > HISTORY_QUEUE_SIZE) m_history.Dequeue();
             UpdateHistoryTextBlock();
             if (m_sendClosedAlert) SendAlertEmail("CLOSED");
